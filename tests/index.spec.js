@@ -66,21 +66,35 @@ describe('pgm', () => {
     })
   })
 
-  describe('make new file', () => {
-    it('make new binary PGM', () => {
+  describe('make new file and read', () => {
+    it('new binary PGM', () => {
       const w = 240; const h = 360
       const pgm = new PGM(w, h)
       makeData(pgm)
       const buf = writePgmSync(pgm)
       fs.writeFileSync(destDir + '/output_binary.pgm', buf)
+      // read
+      const pgm2 = readPgmSync(buf)
+      const meta = pgm2.getHeader()
+      assert.equal(meta.descriptor, 'P5')
+      assert.equal(meta.comment, '')
+      assert.equal(meta.width, 240)
+      assert.equal(meta.height, 360)
     })
-    it('make new ascii PGM', () => {
+    it('new ascii PGM', () => {
       const w = 480; const h = 120
       const pgm = new PGM(w, h)
       makeData(pgm)
       pgm.setDescriptor('P2')
       const buf = writePgmSync(pgm)
       fs.writeFileSync(destDir + '/output_ascii.pgm', buf)
+      // read
+      const pgm2 = readPgmSync(buf)
+      const meta = pgm2.getHeader()
+      assert.equal(meta.descriptor, 'P2')
+      assert.equal(meta.comment, '')
+      assert.equal(meta.width, 480)
+      assert.equal(meta.height, 120)
     })
   })
 
