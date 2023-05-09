@@ -103,14 +103,14 @@ export function readPgmSync (buffer) {
 export function writePgmSync (pgm) {
   const hdr = pgm.getHeader()
   const DescriptorBuf = Buffer.from(hdr.descriptor)
-  const commentBuf = Buffer.from(hdr.comment)
+  const commentBuf =  hdr.comment ? Buffer.from(hdr.comment + '\n') : Buffer.alloc(0)
   const sizeBuf = Buffer.from(hdr.width.toString() + ' ' + hdr.height.toString())
   const maxValueBuf = Buffer.from(hdr.maxValue.toString())
   const ln = Buffer.from([0x0A])
   const data = hdr.descriptor === 'P2' ? _binaryToAscii(pgm.data) : pgm.data
   return Buffer.concat([
     DescriptorBuf, ln,
-    commentBuf, ln,
+    commentBuf,
     sizeBuf, ln,
     maxValueBuf, ln,
     data])
