@@ -2,52 +2,48 @@
  * Class for creating PGM (Portable Graymap) image files.
  */
 export class PGM {
-  #width
-  #height
-  #descriptor = 'P5'
-  #maxValue = 255
-
+  #originalWidth
   /**
-   * Creates a new PGM instance.
-   * @param {number} width - The width of the image.
-   * @param {number} height - The height of the image.
+   * Creates a new PGM instance
+   * @param {number} width - The width of the image
+   * @param {number} height - The height of the image
    */
   constructor (width, height) {
-    this.#width = width
-    this.#height = height
+    this.#originalWidth = width // for trimming
+    this.width = width
+    this.height = height
     this.comment = ''
+    this.descriptor = 'P5'
+    this.maxValue = 255
     this.data = Buffer.alloc(width * height)
   }
 
   /**
-   * Sets the descriptor for the image.
-   * @param {string} descriptor - The descriptor to set ('P5' or 'P2').
-   * @throws {Error} If an unsupported descriptor is provided.
+   * Trims the image to the specified dimensions and position
+   * @param {number} x - The x-coordinate of the top-left corner
+   * @param {number} y - The y-coordinate of the top-left corner
+   * @param {number} width - The width
+   * @param {number} height - The height
    */
-  setDescriptor (descriptor) {
-    if (!['P5', 'P2'].includes(descriptor)) {
-      throw new Error('unsupported descriptor: ' + descriptor)
+  trim (x, y, width, height) {
+    this.width = width
+    this.height = height
+    const newData = Buffer.alloc(width * height)
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width; col++) {
+        const oldRow = row + y
+        const oldCol = col + x
+        const oldMapI = oldCol + (oldRow * this.#originalWidth)
+        const mapI = col + (row * width)
+        // Copy pixel data from the old position to the new position
+        if (this.data.byteLength > oldMapI &&
+          this.#originalWidth > col) {
+          newData.writeUInt8(this.data.readUInt8(oldMapI), mapI)
+        }
+      }
     }
-    this.#descriptor = descriptor
-  }
-
-  /**
-   * Gets the image header.
-   * @returns {Object} An object containing the image header.
-   * @property {number} width - The width of the image.
-   * @property {number} height - The height of the image.
-   * @property {string} descriptor - The descriptor of the image.
-   * @property {string} comment - A comment for the image.
-   * @property {number} maxValue - The maximum gray value of the image.
-   */
-  getHeader () {
-    return {
-      width: this.#width,
-      height: this.#height,
-      descriptor: this.#descriptor,
-      comment: this.comment,
-      maxValue: this.#maxValue
-    }
+    this.#originalWidth = width
+    this.data = newData
   }
 }
 
@@ -76,7 +72,8 @@ export function readPgmSync (buffer) {
         // make pgm
         const [width, height] = _getSizefromBuffer(line)
         pgm = new PGM(width, height)
-        pgm.setDescriptor(descriptor)
+        _checkDescriptor(descriptor)
+        pgm.descriptor = descriptor
       } else if (lineNum === 3) {
         // not use maxValue
         if (descriptor === 'P5') {
@@ -101,13 +98,14 @@ export function readPgmSync (buffer) {
  * @returns {Buffer} - PGM format buffer
  */
 export function writePgmSync (pgm) {
-  const hdr = pgm.getHeader()
-  const DescriptorBuf = Buffer.from(hdr.descriptor)
-  const commentBuf =  hdr.comment ? Buffer.from(hdr.comment + '\n') : Buffer.alloc(0)
-  const sizeBuf = Buffer.from(hdr.width.toString() + ' ' + hdr.height.toString())
-  const maxValueBuf = Buffer.from(hdr.maxValue.toString())
+  _checkDescriptor(pgm.descriptor)
+  _resize(pgm)
+  const DescriptorBuf = Buffer.from(pgm.descriptor)
+  const commentBuf = pgm.comment ? Buffer.from(pgm.comment + '\n') : Buffer.alloc(0)
+  const sizeBuf = Buffer.from(pgm.width.toString() + ' ' + pgm.height.toString())
+  const maxValueBuf = Buffer.from(pgm.maxValue.toString())
   const ln = Buffer.from([0x0A])
-  const data = hdr.descriptor === 'P2' ? _binaryToAscii(pgm.data) : pgm.data
+  const data = pgm.descriptor === 'P2' ? _binaryToAscii(pgm.data) : pgm.data
   return Buffer.concat([
     DescriptorBuf, ln,
     commentBuf,
@@ -150,4 +148,18 @@ function _binaryToAscii (buf) {
 function _isComment (bufLine) {
   const line = bufLine.toString()
   return line.length > 0 && line[0] === '#'
+}
+
+function _checkDescriptor (descriptor) {
+  if (!['P5', 'P2'].includes(descriptor)) {
+    throw new Error('unsupported descriptor: ' + descriptor)
+  }
+}
+
+function _resize (pgm) {
+  const size = pgm.width * pgm.height
+  if (pgm.data.byteLength !== size) {
+    pgm.trim(0, 0, pgm.width, pgm.height)
+  }
+  return pgm
 }
